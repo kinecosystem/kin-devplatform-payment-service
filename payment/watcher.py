@@ -46,7 +46,7 @@ def get_watching_addresses():
     """
     addresses = {}
     for watcher in Watcher.get_all():
-        for address, life in watcher.wallet_addresses.items():
+        for address, orders in watcher.wallet_addresses.items():
             if address not in addresses:
                 addresses[address] = []
             addresses[address].append(watcher)

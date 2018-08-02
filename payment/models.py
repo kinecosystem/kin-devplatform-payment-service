@@ -2,9 +2,9 @@ import json
 from collections import namedtuple
 from datetime import datetime
 from schematics import Model
-from schematics.types import StringType, IntType, DateTimeType, DictType
+from schematics.types import StringType, IntType, DateTimeType, DictType, ListType
 from kin.stellar.horizon_models import TransactionData
-from .errors import PaymentNotFoundError, ParseError, WalletNotFoundError
+from .errors import PaymentNotFoundError, ParseError, WalletNotFoundError, OrderNotFoundError
 from .redis_conn import redis_conn
 
 
@@ -110,27 +110,33 @@ class Payment(ModelWithStr):
 
 
 class Watcher(ModelWithStr):
-    # TODO: Replace wallet 'life' with a specific list of order id's to watch
-    wallet_addresses = DictType(IntType)  # Address : 'life' (how many remove requests before deletion)
+    wallet_addresses = DictType(ListType(StringType))
     callback = StringType()  # a webhook to call when a payment is complete
     service_id = StringType()
 
     def save(self):
         redis_conn.hset(self._key(), self.service_id, json.dumps(self.to_primitive()))
 
-    def add_addresses(self, addresses):
+    def add_addresses(self, addresses, order_id):
         for address in addresses:
-            self.wallet_addresses[address] = self.wallet_addresses.get(address, 0) + 1
+            try:
+                # watch this order id if this address does not already does
+                if order_id not in self.wallet_addresses[address]:
+                    self.wallet_addresses[address].append(order_id)
+            # If we did not watch this address at all
+            except KeyError:
+                self.wallet_addresses[address] = [order_id]
 
-    def remove_address(self,address):
+    def remove_address(self, address, order_id):
         try:
-            # decrease the 'life' of this address
-            self.wallet_addresses[address] = self.wallet_addresses.get(address) - 1
-            if self.wallet_addresses.get(address) == 0:
-                # Remove this address if 'life' reaches 0
+            if order_id not in self.wallet_addresses[address]:
+                raise OrderNotFoundError('Wallet {} did not watch order {}'.format(address, order_id))
+            self.wallet_addresses[address].remove(order_id)
+            if len(self.wallet_addresses[address]) == 0:
+                # Remove this address if it does not watch any orders
                 self.wallet_addresses.pop(address)
         except KeyError:
-            raise WalletNotFoundError
+            raise WalletNotFoundError('Wallet {} was not being watched'.format(address))
 
     @classmethod
     def get(cls, service_id):

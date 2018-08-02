@@ -72,28 +72,31 @@ def pay():
 def watch(service_id):
     body = request.get_json()
     body['service_id'] = service_id
+    order_id = body.pop('order_id')
     if request.method == 'DELETE':
         watcher = Watcher.get(service_id)
         if watcher:
-            watcher.remove_address(body['wallet_address'])
+            watcher.remove_address(body['wallet_address'], order_id)
             log.info('removed address from watcher', watcher=watcher)
         else:
-            raise NoSuchServiceError
+            raise NoSuchServiceError('There is no watcher for service: {}'.format(service_id))
+
+    elif request.method == 'PUT':
+        address_dict = {address: [order_id] for address in body['wallet_addresses']}
+        body['wallet_addresses'] = address_dict
+        watcher = Watcher(body)
+        log.info('added watcher', watcher=watcher)
 
     else:
-        address_dict = {address: 1 for address in body['wallet_addresses']}
-        body['wallet_addresses'] = address_dict
-        if request.method == 'PUT':
+        watcher = Watcher.get(service_id)
+        if watcher:
+            watcher.add_addresses(body['wallet_addresses'], order_id)
+            log.info('added address to watcher', watcher=watcher)
+        else:
+            address_dict = {address: [order_id] for address in body['wallet_addresses']}
+            body['wallet_addresses'] = address_dict
             watcher = Watcher(body)
             log.info('added watcher', watcher=watcher)
-        else:
-            watcher = Watcher.get(service_id)
-            if watcher:
-                watcher.add_addresses(body['wallet_addresses'])
-                log.info('added address to watcher', watcher=watcher)
-            else:
-                watcher = Watcher(body)
-                log.info('added watcher', watcher=watcher)
 
     watcher.save()
 
