@@ -2,9 +2,9 @@ import json
 from collections import namedtuple
 from datetime import datetime
 from schematics import Model
-from schematics.types import StringType, IntType, DateTimeType, ListType
+from schematics.types import StringType, IntType, DateTimeType, DictType
 from kin.stellar.horizon_models import TransactionData
-from .errors import PaymentNotFoundError, ParseError
+from .errors import PaymentNotFoundError, ParseError, WalletNotFoundError
 from .redis_conn import redis_conn
 
 
@@ -110,7 +110,8 @@ class Payment(ModelWithStr):
 
 
 class Watcher(ModelWithStr):
-    wallet_addresses = ListType(StringType)
+    # TODO: Replace wallet 'life' with a specific list of order id's to watch
+    wallet_addresses = DictType(IntType)  # Address : 'life' (how many remove requests before deletion)
     callback = StringType()  # a webhook to call when a payment is complete
     service_id = StringType()
 
@@ -118,8 +119,18 @@ class Watcher(ModelWithStr):
         redis_conn.hset(self._key(), self.service_id, json.dumps(self.to_primitive()))
 
     def add_addresses(self, addresses):
-        self.wallet_addresses = list(
-            set(self.wallet_addresses) | set(addresses))
+        for address in addresses:
+            self.wallet_addresses[address] = self.wallet_addresses.get(address, 0) + 1
+
+    def remove_address(self,address):
+        try:
+            # decrease the 'life' of this address
+            self.wallet_addresses[address] = self.wallet_addresses.get(address) - 1
+            if self.wallet_addresses.get(address) == 0:
+                # Remove this address if 'life' reaches 0
+                self.wallet_addresses.pop(address)
+        except KeyError:
+            raise WalletNotFoundError
 
     @classmethod
     def get(cls, service_id):
@@ -135,7 +146,6 @@ class Watcher(ModelWithStr):
     @classmethod
     def get_all(cls):
         data = redis_conn.hgetall(cls._key()).values()
-
         return [Watcher(json.loads(w.decode('utf8'))) for w in data]
 
     @classmethod
