@@ -4,7 +4,7 @@ from .log import init as init_log
 log = init_log()
 from flask import Flask, request, jsonify
 from .transaction_flow import TransactionFlow
-from .errors import AlreadyExistsError, PaymentNotFoundError
+from .errors import AlreadyExistsError, PaymentNotFoundError, NoSuchServiceError
 from .middleware import handle_errors
 from .models import Payment, WalletRequest, PaymentRequest, Watcher
 from .queue import enqueue_create_wallet, enqueue_send_payment
@@ -67,22 +67,35 @@ def pay():
     return jsonify(), 201
 
 
-@app.route('/watchers/<service_id>', methods=['PUT', 'POST'])
+@app.route('/watchers/<service_id>', methods=['PUT', 'POST', 'DELETE'])
 @handle_errors
 def watch(service_id):
     body = request.get_json()
     body['service_id'] = service_id
-    if request.method == 'PUT':
-        watcher = Watcher(body)
-    else:
+    if request.method == 'DELETE':
         watcher = Watcher.get(service_id)
         if watcher:
-            watcher.add_addresses(body['wallet_addresses'])
+            watcher.remove_address(body['wallet_address'])
+            log.info('removed address from watcher', watcher=watcher)
         else:
+            raise NoSuchServiceError
+
+    else:
+        address_dict = {address: 1 for address in body['wallet_addresses']}
+        body['wallet_addresses'] = address_dict
+        if request.method == 'PUT':
             watcher = Watcher(body)
+            log.info('added watcher', watcher=watcher)
+        else:
+            watcher = Watcher.get(service_id)
+            if watcher:
+                watcher.add_addresses(body['wallet_addresses'])
+                log.info('added address to watcher', watcher=watcher)
+            else:
+                watcher = Watcher(body)
+                log.info('added watcher', watcher=watcher)
 
     watcher.save()
-    log.info('added watcher', watcher=watcher)
 
     return jsonify(watcher.to_primitive())
 
