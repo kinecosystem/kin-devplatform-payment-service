@@ -4,7 +4,7 @@ import time
 from .blockchain import Blockchain
 from .queue import enqueue_payment_callback
 from .log import get as get_log
-from .models import Watcher, CursorManager
+from .models import Watcher, CursorManager, Service
 from .transaction_flow import TransactionFlow
 from .utils import retry
 from .statsd import statsd
@@ -36,21 +36,8 @@ def on_payment(address, payment):
                      tags=['app_id:%s' % payment.app_id,
                            'address:%s' % address])
 
-    for watcher in Watcher.get_subscribed(address):
-        enqueue_payment_callback(watcher.callback, address, payment)
-
-
-def get_watching_addresses():
-    """
-    get a dict of address => watchers
-    """
-    addresses = {}
-    for watcher in Watcher.get_all():
-        for address, orders in watcher.wallet_addresses.items():
-            if address not in addresses:
-                addresses[address] = []
-            addresses[address].append(watcher)
-    return addresses
+    for service_id in Watcher.get_subscribed(address):
+        enqueue_payment_callback(Service.get(service_id), address, payment)
 
 
 def worker(stop_event):
@@ -60,7 +47,7 @@ def worker(stop_event):
         time.sleep(SEC_BETWEEN_RUNS)
         start_t = time.time()
         try:
-            addresses = get_watching_addresses()
+            addresses = Watcher.get_all_addresses()
 
             cursor = get_last_cursor()
             log.debug('got last cursor %s' % cursor)
