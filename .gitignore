@@ -102,6 +102,7 @@ ENV/
 
 .tags
 secrets/
+app_seeds.py
 
 # intellij
 .idea
