@@ -2,9 +2,9 @@ import json
 from collections import namedtuple
 from datetime import datetime
 from schematics import Model
-from schematics.types import StringType, IntType, DateTimeType, DictType
+from schematics.types import StringType, IntType, DateTimeType, DictType, ListType
 from kin.stellar.horizon_models import TransactionData
-from .errors import PaymentNotFoundError, ParseError, WalletNotFoundError
+from .errors import PaymentNotFoundError, ParseError, WalletNotFoundError, OrderNotFoundError
 from .redis_conn import redis_conn
 
 
@@ -109,50 +109,61 @@ class Payment(ModelWithStr):
                        ex=self.PAY_STORE_TIME)
 
 
-class Watcher(ModelWithStr):
-    # TODO: Replace wallet 'life' with a specific list of order id's to watch
-    wallet_addresses = DictType(IntType)  # Address : 'life' (how many remove requests before deletion)
-    callback = StringType()  # a webhook to call when a payment is complete
-    service_id = StringType()
-
-    def save(self):
-        redis_conn.hset(self._key(), self.service_id, json.dumps(self.to_primitive()))
-
-    def add_addresses(self, addresses):
-        for address in addresses:
-            self.wallet_addresses[address] = self.wallet_addresses.get(address, 0) + 1
-
-    def remove_address(self,address):
-        try:
-            # decrease the 'life' of this address
-            self.wallet_addresses[address] = self.wallet_addresses.get(address) - 1
-            if self.wallet_addresses.get(address) == 0:
-                # Remove this address if 'life' reaches 0
-                self.wallet_addresses.pop(address)
-        except KeyError:
-            raise WalletNotFoundError
+class Watcher():
+    @classmethod
+    def add(cls, service_id, address, order_id):
+        # Add an order to the address, redis will not add the same order_id twice.
+        redis_conn.sadd(cls.get_name(service_id, order_id), order_id)
 
     @classmethod
-    def get(cls, service_id):
-        data = redis_conn.hget(cls._key(), service_id)
-        if not data:
-            return None
-        return Watcher(json.loads(data.decode('utf8')))
+    def get_name(cls, service_id, address):
+        return service_id + ':' + address
 
     @classmethod
-    def _key(cls):
-        return 'watchers:2'
+    def remove(cls, service_id, address, order_id):
+        # Remove an order from the address, if the address has no more orders it will be deleted
+        reply = redis_conn.srem(service_id + ':' + address, order_id)
+        # reply is the number of items changed, expected to be 1
+        if reply != 1:
+            raise OrderNotFoundError('Wallet {} did not watch order {}'.format(address, order_id))
 
     @classmethod
-    def get_all(cls):
-        data = redis_conn.hgetall(cls._key()).values()
-        return [Watcher(json.loads(w.decode('utf8'))) for w in data]
+    def get_all_addresses(cls):
+        # Get all keys that are addresses
+        data = redis_conn.scan(0,"*:G*")
+        # Create a list of addresses by decoding the  byte strings and taking everything after ":"
+        addresses = [key.decode().split(':')[1] for key in data[1]]
+        return addresses
 
     @classmethod
     def get_subscribed(cls, address):
-        """get only watchers who are interested in this address."""
-        return [w for w in cls.get_all()
-                if address in w.wallet_addresses]
+        """get services interested in an address."""
+        # Get all keys that are addresses
+        data = redis_conn.scan(0, "*:{}".format(address))
+        # Create a list of addresses by decoding the  byte strings and taking everything before ":"
+        services = [key.decode().split(':')[0] for key in data[1]]
+        return services
+
+
+class Service:
+    # TODO: add endpoint to create new service
+    SERVICE_PREFIX = 'service:'
+
+    @classmethod
+    def get(cls, service_id):
+        data = redis_conn.get(cls.SERVICE_PREFIX + service_id)
+        if data is None:
+            return data
+        # Redis returns data in bytestrings, need to decode it.
+        return data.decode()
+
+    @classmethod
+    def new(cls, service_id, callback_url):
+        reply = redis_conn.set(cls.SERVICE_PREFIX + service_id, callback_url)
+        # reply is True|False
+        return reply
+
+
 
 
 class TransactionRecord(ModelWithStr):

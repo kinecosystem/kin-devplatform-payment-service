@@ -29,5 +29,10 @@ class NoSuchServiceError(BaseError):
     code = 4043
 
 
+class OrderNotFoundError(BaseError):
+    http_code = 404
+    code = 4044
+
+
 class ParseError(ValueError):
     pass

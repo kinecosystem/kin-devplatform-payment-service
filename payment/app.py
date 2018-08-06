@@ -6,7 +6,7 @@ from flask import Flask, request, jsonify
 from .transaction_flow import TransactionFlow
 from .errors import AlreadyExistsError, PaymentNotFoundError, NoSuchServiceError
 from .middleware import handle_errors
-from .models import Payment, WalletRequest, PaymentRequest, Watcher
+from .models import Payment, WalletRequest, PaymentRequest, Watcher, Service
 from .queue import enqueue_create_wallet, enqueue_send_payment
 from .utils import get_network_passphrase
 from .blockchain import Blockchain
@@ -67,37 +67,26 @@ def pay():
     return jsonify(), 201
 
 
-@app.route('/watchers/<service_id>', methods=['PUT', 'POST', 'DELETE'])
+@app.route('/watchers/<service_id>', methods=['POST', 'DELETE'])
 @handle_errors
 def watch(service_id):
     body = request.get_json()
-    body['service_id'] = service_id
     if request.method == 'DELETE':
-        watcher = Watcher.get(service_id)
-        if watcher:
-            watcher.remove_address(body['wallet_address'])
-            log.info('removed address from watcher', watcher=watcher)
+        if Service.get(service_id) is not None:
+            Watcher.remove(service_id, body['wallet_address'], body['order_id'])
+            log.info('removed order {} from address {}'.format(body['order_id'], body['wallet_address']))
         else:
-            raise NoSuchServiceError
+            raise NoSuchServiceError('There is no watcher for service: {}'.format(service_id))
 
-    else:
-        address_dict = {address: 1 for address in body['wallet_addresses']}
-        body['wallet_addresses'] = address_dict
-        if request.method == 'PUT':
-            watcher = Watcher(body)
-            log.info('added watcher', watcher=watcher)
-        else:
-            watcher = Watcher.get(service_id)
-            if watcher:
-                watcher.add_addresses(body['wallet_addresses'])
-                log.info('added address to watcher', watcher=watcher)
-            else:
-                watcher = Watcher(body)
-                log.info('added watcher', watcher=watcher)
+    else: #POST
+        if Service.get(service_id) is None:
+            # Add the service if it not in the database
+            Service.new(service_id, body['callback'])
+        for address in body['wallet_addresses']:
+            Watcher.add(service_id, address, body['order_id'])
+            log.info("Added order: {} to watcher for: {}".format(body['order_id'],address))
 
-    watcher.save()
-
-    return jsonify(watcher.to_primitive())
+    return jsonify(), 200
 
 
 @app.route('/status', methods=['GET'])
