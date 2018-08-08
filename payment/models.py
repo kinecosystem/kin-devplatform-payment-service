@@ -2,9 +2,9 @@ import json
 from collections import namedtuple
 from datetime import datetime
 from schematics import Model
-from schematics.types import StringType, IntType, DateTimeType, DictType, ListType
+from schematics.types import StringType, IntType, DateTimeType, BooleanType
 from kin.stellar.horizon_models import TransactionData
-from .errors import PaymentNotFoundError, ParseError, WalletNotFoundError, OrderNotFoundError
+from .errors import PaymentNotFoundError, ParseError, OrderNotFoundError
 from .redis_conn import redis_conn
 
 
@@ -51,6 +51,7 @@ class Wallet(ModelWithStr):
 class PaymentRequest(ModelWithStr):
     amount = IntType()
     app_id = StringType()
+    is_external = BooleanType()
     recipient_address = StringType()
     id = StringType()
     callback = StringType()  # a webhook to call when a payment is complete
@@ -113,7 +114,7 @@ class Watcher():
     @classmethod
     def add(cls, service_id, address, order_id):
         # Add an order to the address, redis will not add the same order_id twice.
-        redis_conn.sadd(cls.get_name(service_id, order_id), order_id)
+        redis_conn.sadd(cls.get_name(service_id, address), order_id)
 
     @classmethod
     def get_name(cls, service_id, address):

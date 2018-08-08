@@ -52,6 +52,7 @@ def get_next_channel_id():
 @contextlib.contextmanager
 def get_channel(root_wallet: Blockchain):
     """gets next channel_id from redis, generates address/ tops up and inits sdk."""
+    # TODO: do we need channels for each service? or do we pay the tx fees?
     with get_next_channel_id() as channel_id:
         keys = generate_key(root_wallet, channel_id)
         public_address = keys.address().decode()
