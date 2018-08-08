@@ -113,7 +113,7 @@ class Watcher():
     @classmethod
     def add(cls, service_id, address, order_id):
         # Add an order to the address, redis will not add the same order_id twice.
-        redis_conn.sadd(cls.get_name(service_id, order_id), order_id)
+        redis_conn.sadd(cls.get_name(service_id, address), order_id)
 
     @classmethod
     def get_name(cls, service_id, address):
