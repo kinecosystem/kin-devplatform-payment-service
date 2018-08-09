@@ -131,18 +131,18 @@ class Watcher():
     @classmethod
     def get_all_addresses(cls):
         # Get all keys that are addresses
-        data = redis_conn.scan(0,"*:G*")
+        data = redis_conn.keys("*:G*")
         # Create a list of addresses by decoding the  byte strings and taking everything after ":"
-        addresses = [key.decode().split(':')[1] for key in data[1]]
+        addresses = [key.decode().split(':')[1] for key in data]
         return addresses
 
     @classmethod
     def get_subscribed(cls, address):
         """get services interested in an address."""
         # Get all keys that are addresses
-        data = redis_conn.scan(0, "*:{}".format(address))
+        data = redis_conn.keys("*:{}".format(address))
         # Create a list of addresses by decoding the  byte strings and taking everything before ":"
-        services = [key.decode().split(':')[0] for key in data[1]]
+        services = [key.decode().split(':')[0] for key in data]
         return services
 
 
