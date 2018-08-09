@@ -57,11 +57,17 @@ def get_payment(payment_id):
 @handle_errors
 def pay():
     payment = PaymentRequest(request.get_json())
+
     try:
         Payment.get(payment.id)
         raise AlreadyExistsError('payment already exists')
     except PaymentNotFoundError:
         pass
+
+    if payment.is_external:
+        # If order is external pay from the ds wallet
+        if payment.app_id not in config.APP_SEEDS:
+            raise NoSuchServiceError('Did not find keypair for service: {}'.format(payment.app_id))
 
     enqueue_send_payment(payment)
     return jsonify(), 201

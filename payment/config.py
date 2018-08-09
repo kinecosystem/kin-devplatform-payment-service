@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 
+import app_seeds
+
 
 STELLAR_HORIZON_URL = os.environ['STELLAR_HORIZON_URL']
 STELLAR_NETWORK = os.environ['STELLAR_NETWORK']
@@ -22,3 +24,5 @@ DEBUG = os.environ.get('APP_DEBUG', 'true').lower() == 'true'
 build = {'commit': os.environ.get('BUILD_COMMIT'),
          'timestamp': os.environ.get('BUILD_TIMESTAMP'),
          'start_time': datetime.utcnow().isoformat()}
+
+APP_SEEDS = app_seeds.SEEDS

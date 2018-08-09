@@ -150,6 +150,7 @@ def create_wallet_and_callback(wallet_request: dict):
         return Blockchain.get_wallet(wallet_address)
 
     try:
+        # TODO: do we want to create wallet using base wallet or using ds wallet?
         with get_sdk(config.STELLAR_BASE_SEED) as blockchain:
             create_wallet(blockchain, wallet_request)
             enqueue_report_wallet_balance(blockchain.root_address, blockchain.channel_addresses)
@@ -183,7 +184,9 @@ def pay(payment_request: PaymentRequest):
 
     # XXX retry on retry-able errors
     try:
-        with get_sdk(config.STELLAR_BASE_SEED) as blockchain:
+        # Use DS seed if the order is external, use root account otherwise.
+        with get_sdk(config.APP_SEEDS.get(payment_request.app_id)
+                     if payment_request.is_external else config.STELLAR_BASE_SEED) as blockchain:
             tx_id = blockchain.pay_to(
                 payment_request.recipient_address,
                 payment_request.amount,
