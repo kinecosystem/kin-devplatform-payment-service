@@ -25,4 +25,4 @@ build = {'commit': os.environ.get('BUILD_COMMIT'),
          'timestamp': os.environ.get('BUILD_TIMESTAMP'),
          'start_time': datetime.utcnow().isoformat()}
 
-APP_SEEDS = app_seeds.SEEDS
+APP_SEEDS = app_seeds.get_seeds()
