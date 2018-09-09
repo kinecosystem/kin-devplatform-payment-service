@@ -10,4 +10,5 @@ export \
     STELLAR_INITIAL_XLM_AMOUNT=2 \
     CHANNEL_SALT='some_salt' \
     APP_DEBUG=false \
+    SEEDS_PARAMETER_NAME='parameter name here' \
     MAX_CHANNELS=1
