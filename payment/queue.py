@@ -185,7 +185,13 @@ def pay(payment_request: PaymentRequest):
     # XXX retry on retry-able errors
     try:
         # Use DS seed if the order is external, use root account otherwise.
-        with get_sdk(config.APP_SEEDS.get(payment_request.app_id)
+        ours = config.APP_SEEDS.get(payment_request.app_id).our
+        joined = config.APP_SEEDS.get(payment_request.app_id).joined
+        if payment.amount > Blockchain.get_wallet(Blockchain.seed_to_address(ours)).kin_balance:
+            selected_seed = joined
+        else:
+            selected_seed = ours
+        with get_sdk(selected_seed
                      if payment_request.is_external else config.STELLAR_BASE_SEED) as blockchain:
             tx_id = blockchain.pay_to(
                 payment_request.recipient_address,

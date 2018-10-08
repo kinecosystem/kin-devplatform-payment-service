@@ -27,6 +27,13 @@ def get_seeds():
     APP_SEEDS = {}
     for line in seed_list:
         seed_pair = line.split(':')
-        APP_SEEDS[seed_pair[0]] = seed_pair[1]
+        seed_keys = seed_pair[1].split(',')
+        APP_SEEDS[seed_pair[0]] = DS_Wallets((seed_keys[0], seed_keys[1]))
 
     return APP_SEEDS
+
+
+class DS_Wallets:
+    def __init__(self, ds_our, ds_joined):
+        self.our = ds_our
+        self.joined = ds_joined
