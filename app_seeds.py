@@ -4,7 +4,7 @@ import base64
 import boto3
 
 SSM_REGION = os.environ.get('SSM_REGION', 'us-east-1')
-SEEDS_PARAMETER_NAME = os.environ('SEEDS_PARAMETER_NAME')
+SEEDS_PARAMETER_NAME = os.environ.get('SEEDS_PARAMETER_NAME')
 
 
 def get_seeds():
@@ -13,22 +13,24 @@ def get_seeds():
     """
     The seeds are saved on aws ssm, encrypted with a key from aws kms
     The value is a base64encoded text in this form:
-    appId:seed
+    appId:our_seed,joined_seed
     """
 
     # Get value
     client = boto3.client('ssm', region_name=SSM_REGION)
-    seed_parameter = client.get_parameter(Name=SEEDS_PARAMETER_NAME, WithDecryption=True)
-    parameter_value = seed_parameter['Parameter']['Value']
-    # Decode value
-    decoded_value = base64.b64decode(parameter_value).decode()
-    # Create dict of app_id:seed
-    seed_list = decoded_value.splitlines()
+    seed_list = []
+    # The value was too big, so we needed to split it to multiple parameters
+    for name in SEEDS_PARAMETER_NAME.split(','):
+        seed_parameter = client.get_parameter(Name=name, WithDecryption=True)
+        parameter_value = seed_parameter['Parameter']['Value']
+        # Decode value
+        decoded_value = base64.b64decode(parameter_value).decode()
+        seed_list.extend(decoded_value.splitlines())
     APP_SEEDS = {}
     for line in seed_list:
         seed_pair = line.split(':')
         seed_keys = seed_pair[1].split(',')
-        APP_SEEDS[seed_pair[0]] = DS_Wallets((seed_keys[0], seed_keys[1]))
+        APP_SEEDS[seed_pair[0]] = DS_Wallets(seed_keys[0], seed_keys[1])
 
     return APP_SEEDS
 
