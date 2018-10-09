@@ -8,7 +8,7 @@ from .models import Payment, PaymentRequest, WalletRequest, Wallet
 from .utils import retry, lock
 from .redis_conn import redis_conn
 from .statsd import statsd
-from .blockchain import Blockchain, get_sdk
+from .blockchain import Blockchain, get_sdk, seed_to_address
 
 
 q = Queue(connection=redis_conn)
@@ -185,12 +185,10 @@ def pay(payment_request: PaymentRequest):
     # XXX retry on retry-able errors
     try:
         # Use DS seed if the order is external, use root account otherwise.
-        ours = config.APP_SEEDS.get(payment_request.app_id).our
-        joined = config.APP_SEEDS.get(payment_request.app_id).joined
-        if payment.amount > Blockchain.get_wallet(Blockchain.seed_to_address(ours)).kin_balance:
-            selected_seed = joined
-        else:
-            selected_seed = ours
+        sender_public_address = payment_request.sender_address
+        our_seed = config.APP_SEEDS.get(payment_request.app_id)[0]
+        joined_seed = config.APP_SEEDS.get(payment_request.app_id)[1]
+        selected_seed = our_seed if seed_to_address(our_seed) == sender_public_address else joined_seed
         with get_sdk(selected_seed
                      if payment_request.is_external else config.STELLAR_BASE_SEED) as blockchain:
             tx_id = blockchain.pay_to(
