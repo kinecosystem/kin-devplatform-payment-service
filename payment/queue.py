@@ -186,8 +186,8 @@ def pay(payment_request: PaymentRequest):
     try:
         # Use DS seed if the order is external, use root account otherwise.
         sender_public_address = payment_request.sender_address
-        our_seed = config.APP_SEEDS.get(payment_request.app_id)[0]
-        joined_seed = config.APP_SEEDS.get(payment_request.app_id)[1]
+        our_seed = config.APP_SEEDS.get(payment_request.app_id).our
+        joined_seed = config.APP_SEEDS.get(payment_request.app_id).joined
         selected_seed = our_seed if seed_to_address(our_seed) == sender_public_address else joined_seed
         with get_sdk(selected_seed
                      if payment_request.is_external else config.STELLAR_BASE_SEED) as blockchain:
