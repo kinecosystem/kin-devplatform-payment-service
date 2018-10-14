@@ -53,6 +53,7 @@ class PaymentRequest(ModelWithStr):
     app_id = StringType()
     is_external = BooleanType()
     recipient_address = StringType()
+    sender_address = StringType()
     id = StringType()
     callback = StringType()  # a webhook to call when a payment is complete
 
