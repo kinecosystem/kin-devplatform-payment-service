@@ -3,6 +3,7 @@ import base64
 
 import boto3
 
+IS_LOCAL = os.environ.get('IS_LOCAL', 'false')
 SSM_REGION = os.environ.get('SSM_REGION', 'us-east-1')
 SEEDS_PARAMETER_NAME = os.environ.get('SEEDS_PARAMETER_NAME')
 
@@ -16,7 +17,10 @@ def get_seeds():
     appId:our_seed,joined_seed
     """
 
-    # Get value
+    if IS_LOCAL == 'true' :
+        local_test_seed =  os.environ.get('LOCAL_TEST_SEED', '')
+        return {'test', DS_Wallets(local_test_seed,local_test_seed)}
+    # Get value    
     client = boto3.client('ssm', region_name=SSM_REGION)
     seed_list = []
     # The value was too big, so we needed to split it to multiple parameters
