@@ -19,7 +19,7 @@ def get_seeds():
 
     if IS_LOCAL == 'true' :
         local_test_seed =  os.environ.get('LOCAL_TEST_SEED', '')
-        return {'test', DS_Wallets(local_test_seed,local_test_seed)}
+        return {'test' : DS_Wallets(local_test_seed,local_test_seed)}
     # Get value    
     client = boto3.client('ssm', region_name=SSM_REGION)
     seed_list = []
