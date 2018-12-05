@@ -1,24 +1,19 @@
 [[source]]
-
 url = "https://pypi.python.org/simple"
 verify_ssl = true
 name = "pypi"
 
-
 [dev-packages]
-
 ipython = "*"
 
-
 [packages]
-
 flask = "*"
 schematics = "*"
 structlog = "*"
 requests = "*"
-kin = {git = "https://github.com/kinecosystem/kin-core-python.git", ref = "7e2de18"}
 rq = "*"
 hiredis = "*"
 gunicorn = "*"
 datadog = "*"
 "boto3" = "*"
+kin-sdk = "==2.1.5"
