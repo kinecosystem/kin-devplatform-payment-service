@@ -8,11 +8,12 @@ from .models import Payment, PaymentRequest, WalletRequest, Wallet
 from .utils import retry, lock
 from .redis_conn import redis_conn
 from .statsd import statsd
-from .blockchain import Blockchain, get_sdk, seed_to_address
+from .blockchain import Blockchain, get_sdk
+from kin.blockchain.keypair import Keypair
 
 
 q = Queue(connection=redis_conn)
-log = get_log()
+log = get_log('rq.worker')
 
 
 def enqueue_send_payment(payment_request: PaymentRequest):
@@ -129,8 +130,6 @@ def pay_and_callback(payment_request: dict):
     with lock(redis_conn, 'payment:{}'.format(payment_request.id), blocking_timeout=120):
         try:
             payment = pay(payment_request)
-        except kin.AccountNotActivatedError:
-            enqueue_payment_failed_callback(payment_request, "no trustline")
         except Exception as e:
             enqueue_payment_failed_callback(payment_request, str(e))
         else:
@@ -141,21 +140,20 @@ def create_wallet_and_callback(wallet_request: dict):
     log.info('create_wallet_and_callback recieved', wallet_request=wallet_request)
     wallet_request = WalletRequest(wallet_request)
 
-    @retry(5, 0.2, ignore=[kin.AccountExistsError, kin.LowBalanceError])
+    @retry(5, 0.2, ignore=[kin.KinErrors.AccountExistsError, kin.KinErrors.LowBalanceError])
     def create_wallet(blockchain, wallet_request):
-        return blockchain.create_wallet(wallet_request.wallet_address, wallet_request.app_id)
+        return blockchain.create_wallet(wallet_request.wallet_address)
 
     @retry(10, 3)
     def get_wallet(wallet_address):
         return Blockchain.get_wallet(wallet_address)
 
     try:
-        # TODO: do we want to create wallet using base wallet or using ds wallet?
         with get_sdk(config.STELLAR_BASE_SEED) as blockchain:
             create_wallet(blockchain, wallet_request)
-            enqueue_report_wallet_balance(blockchain.root_address, blockchain.channel_addresses)
+            enqueue_report_wallet_balance(blockchain.root_address, blockchain.channel_address)
 
-    except kin.AccountExistsError as e:
+    except kin.KinErrors.AccountExistsError as e:
         statsd.increment('wallet.exists', tags=['app_id:%s' % wallet_request.app_id])
         log.info('wallet already exists - ok', public_address=wallet_request.wallet_address)
         enqueue_wallet_failed_callback(wallet_request, "account exists")
@@ -188,15 +186,14 @@ def pay(payment_request: PaymentRequest):
         sender_public_address = payment_request.sender_address
         our_seed = config.APP_SEEDS.get(payment_request.app_id).our
         joined_seed = config.APP_SEEDS.get(payment_request.app_id).joined
-        selected_seed = our_seed if seed_to_address(our_seed) == sender_public_address else joined_seed
+        selected_seed = our_seed if Keypair.address_from_seed(our_seed) == sender_public_address else joined_seed
         with get_sdk(selected_seed
                      if payment_request.is_external else config.STELLAR_BASE_SEED) as blockchain:
             tx_id = blockchain.pay_to(
                 payment_request.recipient_address,
                 payment_request.amount,
-                payment_request.app_id,
                 payment_request.id)
-            enqueue_report_wallet_balance(blockchain.root_address, blockchain.channel_addresses)
+            enqueue_report_wallet_balance(blockchain.root_address, blockchain.channel_address)
 
         log.info('paid transaction', tx_id=tx_id, payment_id=payment_request.id)
         statsd.inc_count('transaction.paid',
@@ -221,18 +218,15 @@ def pay(payment_request: PaymentRequest):
     return payment
 
 
-def report_balance(root_address, channel_addresses):
+def report_balance(root_address, channel_address):
     """report root wallet balance metrics to statsd."""
     try:
         wallet = Blockchain.get_wallet(root_address)
-        statsd.gauge('root_wallet.kin_balance', wallet.kin_balance,
-                     tags=['address:%s' % root_address])
         statsd.gauge('root_wallet.native_balance', wallet.native_balance,
                      tags=['address:%s' % root_address])
-        for channel_address in channel_addresses:
-            wallet = Blockchain.get_wallet(channel_address)
-            statsd.gauge('channel_wallet.native_balance', wallet.native_balance,
-                         tags=['address:%s' % channel_address])
+        wallet = Blockchain.get_wallet(channel_address)
+        statsd.gauge('channel_wallet.native_balance', wallet.native_balance,
+                     tags=['address:%s' % channel_address])
 
     except Exception:
         pass  # don't fail
