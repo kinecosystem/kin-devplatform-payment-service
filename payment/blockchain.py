@@ -2,7 +2,6 @@ import contextlib
 from typing import List
 from kin.errors import AccountNotFoundError
 from kin.transactions import SimplifiedTransaction
-from kin.blockchain.channel_manager import ChannelManager
 from kin import KinClient
 from kin.account import KinAccount
 from kin import Keypair
@@ -128,8 +127,7 @@ def get_sdk(seed: str) -> Blockchain:
     sdk = _write_sdks[address]
 
     with get_channel(root_wallet) as channel:
-        sdk.channel_manager = ChannelManager([channel])
         try:
             yield Blockchain(sdk, channel)
         finally:
-            sdk.channel_manager = None
+            pass
