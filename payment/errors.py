@@ -36,7 +36,7 @@ class OrderNotFoundError(BaseError):
 
 class TransactionMismatch(BaseError):
     http_code = 401
-    code = 4045
+    code = 4015
 
 
 class ParseError(ValueError):

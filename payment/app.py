@@ -96,8 +96,6 @@ def watch(service_id):
 
 @app.route('/whitelist', methods=['POST'])
 def whitelist():
-    print(request.get_json())
-    print(type(request.get_json()))
     whitelist_request = WhitelistRequest(request.get_json())
     whitelist_request.verify_transaction()
     # Transaction is verified, whitelist it and return to marketplace
@@ -119,5 +117,5 @@ def status():
 @app.route('/config', methods=['GET'])
 def get_config():
     return jsonify({'horizon_url': config.STELLAR_HORIZON_URL,
-                    'network_passphrase': (config.STELLAR_NETWORK),
+                    'network_passphrase': config.STELLAR_NETWORK,
                     })

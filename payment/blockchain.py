@@ -12,7 +12,6 @@ from .log import get as get_log
 from .errors import WalletNotFoundError
 from .config import STELLAR_ENV, APP_SEEDS
 
-
 log = get_log('rq.worker')
 _write_sdks = {}
 
@@ -33,11 +32,7 @@ class Blockchain(object):
         log.info('creating wallet', public_address=public_address)
         # We use 'build_create_account' instead of 'create_account' since we have our method of managing seeds in redis
         builder = self.write_sdk.build_create_account(public_address, 0, self.minimum_fee)
-        builder.set_channel(self.channel)
-        builder.sign(self.channel)
-        if self.channel != self.write_sdk.keypair.secret_seed:
-            builder.sign(self.write_sdk.keypair.secret_seed)
-        tx_id = self.write_sdk.submit_transaction(builder)
+        tx_id = self._sign_and_send_tx(builder)
         log.info('create wallet transaction', tx_id=tx_id)
         return tx_id
 
@@ -46,12 +41,7 @@ class Blockchain(object):
         log.info('sending kin to', address=public_address)
         # We use 'build_send_kin' instead of 'send_kin' since we have our method of managing seeds in redis
         builder = self.write_sdk.build_send_kin(public_address, amount, fee=self.minimum_fee, memo_text=payment_id)
-        builder.set_channel(self.channel)
-        builder.sign(self.channel)
-        if self.channel != self.write_sdk.keypair.secret_seed:
-            builder.sign(self.write_sdk.keypair.secret_seed)
-        tx_id = self.write_sdk.submit_transaction(builder)
-        return tx_id
+        return self._sign_and_send_tx(builder)
 
     @staticmethod
     def get_wallet(public_address: str) -> Wallet:
@@ -104,6 +94,14 @@ class Blockchain(object):
         reply = Blockchain.read_sdk.horizon.payments(params={'cursor': 'now', 'order': 'desc', 'limit': 1})
         return reply['_embedded']['records'][0]['paging_token']
 
+    def _sign_and_send_tx(self, builder) -> str:
+        builder.set_channel(self.channel)
+        builder.sign(self.channel)
+        if self.channel != self.write_sdk.keypair.secret_seed:
+            builder.sign(self.write_sdk.keypair.secret_seed)
+        tx_id = self.write_sdk.submit_transaction(builder)
+        return tx_id
+
 
 # The wallet that funds all other channels and sub-funding-wallets
 root_account = Blockchain.read_sdk.kin_account(config.STELLAR_BASE_SEED, channel_secret_keys=[])
@@ -111,7 +109,7 @@ root_wallet = Blockchain(root_account, root_account.keypair.secret_seed)
 
 # init sdks
 for ds, seeds in APP_SEEDS.items():
-    our_sdk = Blockchain.read_sdk.kin_account(seeds.our,app_id=ds)
+    our_sdk = Blockchain.read_sdk.kin_account(seeds.our, app_id=ds)
     _write_sdks[Keypair.address_from_seed(seeds.our)] = our_sdk
 
     joined_sdk = Blockchain.read_sdk.kin_account(seeds.joined, app_id=ds)

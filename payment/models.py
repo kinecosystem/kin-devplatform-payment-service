@@ -70,7 +70,7 @@ class WhitelistRequest(ModelWithStr):
     app_id = StringType()
 
     @staticmethod
-    def compare_attr(attr1, attr2, attr_name):
+    def _compare_attr(attr1, attr2, attr_name):
         if attr1 != attr2:
             raise TransactionMismatch('{attr_name}: {attr1} does not match expected {attr_name}: {attr2}'.
                                       format(attr_name=attr_name,
@@ -89,11 +89,11 @@ class WhitelistRequest(ModelWithStr):
         memo_parts = decoded_tx.memo.split('-')
         if len(memo_parts) != 3:
             raise TransactionMismatch('Unexpected memo')
-        self.compare_attr(memo_parts[1], self.app_id, 'App id')
-        self.compare_attr(memo_parts[2], self.order_id, 'Order id')
-        self.compare_attr(decoded_tx.source, self.source, 'Source account')
-        self.compare_attr(decoded_tx.operation.destination, self.destination, 'Destination account')
-        self.compare_attr(decoded_tx.operation.amount, self.amount, 'Amount')
+        self._compare_attr(memo_parts[1], self.app_id, 'App id')
+        self._compare_attr(memo_parts[2], self.order_id, 'Order id')
+        self._compare_attr(decoded_tx.source, self.source, 'Source account')
+        self._compare_attr(decoded_tx.operation.destination, self.destination, 'Destination account')
+        self._compare_attr(decoded_tx.operation.amount, self.amount, 'Amount')
 
     def whitelist(self) -> str:
         """Sign and return a transaction to whitelist it"""
@@ -126,7 +126,7 @@ class Payment(ModelWithStr):
         t.sender_address = data.source
         t.recipient_address = data.operation.destination
         t.amount = int(data.operation.amount)
-        t.timestamp = DateTimeType().from_string(data.timestamp)
+        t.timestamp = datetime.strptime(t.timestamp, '%Y-%m-%dT%H:%M:%SZ')  # 2018-11-12T06:45:40Z
         return t
 
     @classmethod
