@@ -126,7 +126,7 @@ class Payment(ModelWithStr):
         t.sender_address = data.source
         t.recipient_address = data.operation.destination
         t.amount = int(data.operation.amount)
-        t.timestamp = datetime.strptime(t.timestamp, '%Y-%m-%dT%H:%M:%SZ')  # 2018-11-12T06:45:40Z
+        t.timestamp = datetime.strptime(data.timestamp, '%Y-%m-%dT%H:%M:%SZ')  # 2018-11-12T06:45:40Z
         return t
 
     @classmethod
@@ -220,8 +220,7 @@ class TransactionRecord(ModelWithStr):
     to_address = StringType(serialized_name='to', required=True)
     from_address = StringType(serialized_name='from', required=True)
     transaction_hash = StringType(required=True)
-    asset_code = StringType()
-    asset_issuer = StringType()
+    asset_type = StringType()
     paging_token = StringType(required=True)
     type = StringType(required=True)
 

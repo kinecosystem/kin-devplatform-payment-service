@@ -19,7 +19,7 @@ class TransactionFlow():
         while records:
             for record in records:
                 if (record.type == 'payment'
-                        and record.asset_code == NATIVE_ASSET_TYPE):
+                        and record.asset_type == NATIVE_ASSET_TYPE):
                     yield record
                 self.cursor = record.paging_token
             records = get_records(self.cursor)
