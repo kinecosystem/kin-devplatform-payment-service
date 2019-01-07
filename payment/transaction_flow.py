@@ -38,7 +38,7 @@ class TransactionFlow():
 
         for record in self._yield_transactions(get_all_records):
             if record.to_address in addresses:
-                yield record.to_address, Blockchain.get_transaction_data(record.transaction_hash)
+                yield record.to_address, Blockchain.get_transaction_data(record.transaction_hash), record.paging_token
             elif record.from_address in addresses:
-                yield record.from_address, Blockchain.get_transaction_data(record.transaction_hash)
+                yield record.from_address, Blockchain.get_transaction_data(record.transaction_hash), record.paging_token
             # else - address is not watched
