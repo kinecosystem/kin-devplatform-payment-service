@@ -6,9 +6,8 @@ from flask import Flask, request, jsonify
 from .transaction_flow import TransactionFlow
 from .errors import AlreadyExistsError, PaymentNotFoundError, NoSuchServiceError
 from .middleware import handle_errors
-from .models import Payment, WalletRequest, PaymentRequest, Watcher, Service
+from .models import Payment, WalletRequest, PaymentRequest, Watcher, Service, WhitelistRequest
 from .queue import enqueue_create_wallet, enqueue_send_payment
-from .utils import get_network_passphrase
 from .blockchain import Blockchain
 
 
@@ -84,7 +83,7 @@ def watch(service_id):
         else:
             raise NoSuchServiceError('There is no watcher for service: {}'.format(service_id))
 
-    else: #POST
+    else:  # POST
         if Service.get(service_id) is None:
             # Add the service if it not in the database
             Service.new(service_id, body['callback'])
@@ -93,6 +92,15 @@ def watch(service_id):
             log.info("Added order: {} to watcher for: {}".format(body['order_id'],address))
 
     return jsonify(), 200
+
+
+@app.route('/whitelist', methods=['POST'])
+def whitelist():
+    whitelist_request = WhitelistRequest(request.get_json())
+    whitelist_request.verify_transaction()
+    # Transaction is verified, whitelist it and return to marketplace
+    whitelisted_tx = whitelist_request.whitelist()
+    return jsonify({'tx': whitelisted_tx}), 200
 
 
 @app.route('/status', methods=['GET'])
@@ -109,7 +117,5 @@ def status():
 @app.route('/config', methods=['GET'])
 def get_config():
     return jsonify({'horizon_url': config.STELLAR_HORIZON_URL,
-                    'network_passphrase': get_network_passphrase(config.STELLAR_NETWORK),
-                    'asset_issuer': config.STELLAR_KIN_ISSUER_ADDRESS,
-                    'asset_code': config.STELLAR_KIN_TOKEN_NAME,
+                    'network_passphrase': config.STELLAR_NETWORK,
                     })

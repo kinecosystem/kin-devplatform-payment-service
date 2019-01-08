@@ -34,5 +34,10 @@ class OrderNotFoundError(BaseError):
     code = 4044
 
 
+class TransactionMismatch(BaseError):
+    http_code = 401
+    code = 4015
+
+
 class ParseError(ValueError):
     pass
