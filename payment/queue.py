@@ -125,7 +125,7 @@ def call_callback(callback: str, app_id: str, objekt: str, state: str, action: s
 
 def pay_and_callback(payment_request: dict):
     """lock, try to pay and callback."""
-    log.info('pay_and_callback recieved', payment_request=payment_request)
+    log.info('pay_and_callback received', payment_request=payment_request)
     payment_request = PaymentRequest(payment_request)
     with lock(redis_conn, 'payment:{}'.format(payment_request.id), blocking_timeout=120):
         try:
@@ -137,7 +137,7 @@ def pay_and_callback(payment_request: dict):
 
 
 def create_wallet_and_callback(wallet_request: dict):
-    log.info('create_wallet_and_callback recieved', wallet_request=wallet_request)
+    log.info('create_wallet_and_callback received', wallet_request=wallet_request)
     wallet_request = WalletRequest(wallet_request)
 
     @retry(5, 0.2, ignore=[kin.KinErrors.AccountExistsError, kin.KinErrors.LowBalanceError])
@@ -148,8 +148,10 @@ def create_wallet_and_callback(wallet_request: dict):
     def get_wallet(wallet_address):
         return Blockchain.get_wallet(wallet_address)
 
+    # Use the app's wallet to create the user's wallet
+    selected_seed = config.APP_SEEDS.get(wallet_request.app_id).our
     try:
-        with get_sdk(config.STELLAR_BASE_SEED) as blockchain:
+        with get_sdk(selected_seed) as blockchain:
             create_wallet(blockchain, wallet_request)
             enqueue_report_wallet_balance(blockchain.root_address, blockchain.channel_address)
 

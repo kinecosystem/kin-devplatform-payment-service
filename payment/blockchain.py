@@ -114,6 +114,7 @@ for ds, seeds in APP_SEEDS.items():
 
     joined_sdk = Blockchain.read_sdk.kin_account(seeds.joined, app_id=ds)
     _write_sdks[Keypair.address_from_seed(seeds.joined)] = joined_sdk
+_write_sdks[root_account.get_public_address()] = root_account
 
 
 @contextlib.contextmanager
