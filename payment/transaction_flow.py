@@ -3,6 +3,7 @@ from .log import get as get_log
 from typing import Callable, List, Generator
 from .models import TransactionRecord
 from kin.transactions import NATIVE_ASSET_TYPE
+from kin import KinErrors
 
 
 log = get_log()
@@ -37,8 +38,13 @@ class TransactionFlow():
             return Blockchain.get_all_records(cursor, 100)
 
         for record in self._yield_transactions(get_all_records):
-            if record.to_address in addresses:
-                yield record.to_address, Blockchain.get_transaction_data(record.transaction_hash), record.paging_token
-            elif record.from_address in addresses:
-                yield record.from_address, Blockchain.get_transaction_data(record.transaction_hash), record.paging_token
+            try:
+                if record.to_address in addresses:
+                    yield record.to_address, Blockchain.get_transaction_data(record.transaction_hash), record.paging_token
+                elif record.from_address in addresses:
+                    yield record.from_address, Blockchain.get_transaction_data(record.transaction_hash), record.paging_token
+            except KinErrors.CantSimplifyError as e:
+                # We dont expect any transaction that cant be simplified
+                print(e)
+                pass
             # else - address is not watched
