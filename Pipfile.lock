@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "8421a7ff3672500c8a0109ee1c3f57344f2f607b32295f61119eb5ed231884f6"
+            "sha256": "88ceafb23f6bdae33c0121c151b943e2d4e0dc5a8f82f1113447367d8f6a7468"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -16,18 +16,18 @@
     "default": {
         "boto3": {
             "hashes": [
-                "sha256:90c5634fcd9c658f8d1554885f33d8c472a9adcde5f29d92ef91dcd12bf2e646",
-                "sha256:f45a88dc66e935f03dcc7f41b7702fddfdd9d8ab1f29a9668687c3abba544e0e"
+                "sha256:542c27cdf5756155805665bc0307b1452a4f6c7a433c1f7d7891ade1b6c7bc91",
+                "sha256:65fb08c87bc7fe144f9b74dd4e02ada8b7c2286cd8eb687fa0a249f628fefce2"
             ],
             "index": "pypi",
-            "version": "==1.9.71"
+            "version": "==1.9.82"
         },
         "botocore": {
             "hashes": [
-                "sha256:d6fa29f28899892f77014c19afa40ec1b87ef1e57b15c7eac582e8d48eddf32d",
-                "sha256:e5bcea66a1ffad9b2e1ff2935a31455c76f689e00b924e9920cb012b177fbe35"
+                "sha256:8728950603204fa5be825c253b31f596b27677ab38ae6aca0772946ece7bd00a",
+                "sha256:d8487bc063482a4f9f394e05bfb790a95566ed31653a89677a889e1237d571f5"
             ],
-            "version": "==1.12.71"
+            "version": "==1.12.82"
         },
         "certifi": {
             "hashes": [
@@ -86,15 +86,6 @@
             ],
             "markers": "sys_platform != 'win32' and sys_platform != 'cygwin'",
             "version": "==1.4"
-        },
-        "enum34": {
-            "hashes": [
-                "sha256:2d81cbbe0e73112bdfe6ef8576f2238f2ba27dd0d55752a776c41d38b7da2850",
-                "sha256:644837f692e5f550741432dd3f223bbb9852018674981b1664e5dc339387588a",
-                "sha256:6bd0f6ad48ec2aa117d3d141940d484deccda84d4fcd884f5c3d93c23ecd8c79",
-                "sha256:8ad8c4783bf61ded74527bffb48ed9b54166685e4230386a9ed9b1279e2df5b1"
-            ],
-            "version": "==1.1.6"
         },
         "flask": {
             "hashes": [
@@ -168,11 +159,10 @@
         },
         "kin-sdk": {
             "hashes": [
-                "sha256:a88b40d502f127ee049712dd5ad55c59ba5ce2283c34cdc41838101638dfe84f",
-                "sha256:aa622e86c2ea1f744c6cf81b666f8b4d50b20ef09ae224ee6e188eadecc9e532"
+                "sha256:7a23f4ab9db522b4c6c40920e4de65223a1125821071f27abb07f20d30988e9f"
             ],
             "index": "pypi",
-            "version": "==2.2.3"
+            "version": "==2.2.5"
         },
         "markupsafe": {
             "hashes": [
