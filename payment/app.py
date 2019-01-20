@@ -95,6 +95,7 @@ def watch(service_id):
 
 
 @app.route('/whitelist', methods=['POST'])
+@handle_errors
 def whitelist():
     whitelist_request = WhitelistRequest(request.get_json())
     whitelist_request.verify_transaction()
