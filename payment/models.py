@@ -85,7 +85,9 @@ class WhitelistRequest(ModelWithStr):
             if isinstance(e, KinErrors.CantSimplifyError):
                 raise TransactionMismatch('Unexpected transaction')
             log.error('Couldn\'t decode tx with xdr: {}'.format(self.xdr))
-            raise TransactionMismatch('Transaction could not be deocded')
+            raise TransactionMismatch('Transaction could not be decoded')
+        if decoded_tx.memo is None:
+            raise TransactionMismatch('Unexpected memo')
         memo_parts = decoded_tx.memo.split('-')
         if len(memo_parts) != 3:
             raise TransactionMismatch('Unexpected memo')
