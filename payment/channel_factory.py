@@ -3,7 +3,6 @@ import time
 from random import randint
 from hashlib import sha256
 from kin_base import Keypair
-from kin import KinErrors
 from .utils import lock
 from . import config
 from .redis_conn import redis_conn
@@ -45,8 +44,4 @@ def get_channel(root_wallet: Blockchain):
     """gets next channel_id from redis, generates address/ tops up and inits sdk."""
     with get_next_channel_id() as channel_id:
         keys = generate_key(root_wallet, channel_id)
-        public_address = keys.address().decode()
-        if not root_wallet.read_sdk.does_account_exists(public_address):
-            root_wallet.create_wallet(public_address)
-            log.info('# created channel: %s: %s' % (channel_id, public_address))
         yield keys.seed().decode()
