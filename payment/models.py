@@ -6,6 +6,7 @@ from schematics.types import StringType, IntType, DateTimeType, BooleanType
 from kin.transactions import NATIVE_ASSET_TYPE, SimplifiedTransaction
 from kin import decode_transaction
 from kin import KinErrors
+from kin import Keypair
 from .errors import PaymentNotFoundError, ParseError, OrderNotFoundError, TransactionMismatch
 from .redis_conn import redis_conn
 from .log import get as get_log
@@ -99,14 +100,14 @@ class WhitelistRequest(ModelWithStr):
 
     def whitelist(self) -> str:
         """Sign and return a transaction to whitelist it"""
-        # Get app hot wallet account
         # Fix for circular imports
         # https://stackoverflow.com/questions/1250103/attributeerror-module-object-has-no-attribute
-        from .blockchain import get_sdk
+        from .blockchain import _write_sdks
         app_seed = APP_SEEDS.get(self.app_id).our
-        with get_sdk(app_seed) as hot_account:
-            return hot_account.write_sdk.whitelist_transaction({'envelope': self.xdr,
-                                                                'network_id': self.network_id})
+        # Get app hot wallet account
+        hot_account = _write_sdks[Keypair.address_from_seed(app_seed)]
+        return hot_account.whitelist_transaction({'envelope': self.xdr,
+                                                  'network_id': self.network_id})
 
 
 class Payment(ModelWithStr):
