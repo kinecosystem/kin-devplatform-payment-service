@@ -5,7 +5,7 @@ split:
 	tmux new-session 'make run' \; split-window 'make worker' \; split-window 'make watcher' \;
 
 run:
-	. ./local.sh && . ./secrets/.secrets && pipenv run gunicorn -b localhost:5000 payment.app:app
+	. ./local.sh && pipenv run python app.py
 
 worker:
 	. ./local.sh && . ./secrets/.secrets && pipenv run python worker.py

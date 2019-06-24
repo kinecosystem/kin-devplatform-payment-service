@@ -37,7 +37,7 @@ def split_pos_args(logger, method_name, event_dict):
 
 
 def init():
-    logging.basicConfig(stream=sys.stdout, format='%(message)s')
+    logging.basicConfig(stream=sys.stdout, format='%(name)s :  %(message)s')
 
     logging.getLogger().setLevel(LOG_LEVEL_DEBUG if config.DEBUG
                                  else LOG_LEVEL_PROD)
@@ -51,7 +51,7 @@ def init():
             TimeStamper(fmt='iso', utc=True),
             StackInfoRenderer(),
             format_exc_info,
-            JSONRenderer(sort_keys=True)
+            JSONRenderer(sort_keys=True, indent=2)
         ],
         context_class=wrap_dict(dict),
         logger_factory=LoggerFactory(),
@@ -59,8 +59,11 @@ def init():
         cache_logger_on_first_use=True,
     )
 
-    for logger_name in ['requests', 'statsd', 'amqpstorm', 'datadog.dogstatsd']:
-        logging.getLogger(logger_name).setLevel(logging.WARNING)
+    for logger_name in ['aioredis', 'statsd', 'amqpstorm',
+                        'datadog.dogstatsd', 'datadog.threadstats']:
+        logging.getLogger(logger_name).setLevel(logging.ERROR)
+
+    logging.getLogger('kin').setLevel(logging.WARNING)
 
     return get()
 

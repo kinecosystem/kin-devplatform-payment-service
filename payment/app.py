@@ -1,64 +1,50 @@
 from . import config
 from .log import init as init_log
 
-log = init_log()
-from flask import Flask, request, jsonify
-from .transaction_flow import TransactionFlow
+import asyncio
+from sanic import Sanic
+from sanic.request import Request
+
+from .statsd import statsd
 from .errors import AlreadyExistsError, PaymentNotFoundError, NoSuchServiceError
-from .middleware import handle_errors
-from .models import Payment, WalletRequest, PaymentRequest, Watcher, Service, WhitelistRequest
-from .queue import enqueue_create_wallet, enqueue_send_payment
-from .blockchain import Blockchain
+from .middleware import init_middlewares
+from .models import Payment, WalletRequest, PaymentRequest ,WhitelistRequest
+from .queue import Enqueuer
+from .utils import json_response
+from .blockchain import BlockchainManager
+from .watcher import PaymentWatcher
 
+log = init_log()
 
-app = Flask(__name__)
+app = Sanic(__name__)
+init_middlewares(app, config)
+
+# Just for the ide intellisense
+app.enqueuer: Enqueuer
+app.blockchain_manager: BlockchainManager
+app.watcher: PaymentWatcher
 
 
 @app.route('/wallets', methods=['POST'])
-@handle_errors
-def create_wallet():
-    body = WalletRequest(request.get_json())
+async def create_wallet(request: Request):
+    body = WalletRequest(request.json)
 
-    # wallet creation is idempotent - no locking needed
-    enqueue_create_wallet(body)
-
-    return jsonify(), 202
+    app.enqueuer.enqueue_create_wallet(body)
+    return json_response({}, 200)
 
 
 @app.route('/wallets/<wallet_address>', methods=['GET'])
-@handle_errors
-def get_wallet(wallet_address):
-    w = Blockchain.get_wallet(wallet_address)
-    return jsonify(w.to_primitive())
-
-
-@app.route('/wallets/<wallet_address>/payments', methods=['GET'])
-@handle_errors
-def get_wallet_payments(wallet_address):
-    payments = []
-    flow = TransactionFlow(cursor=0)
-    for tx in flow.get_address_transactions(wallet_address):
-        payment = Blockchain.try_parse_payment(tx)
-        if payment:
-            payments.append(payment.to_primitive())
-
-    return jsonify({'payments': payments})
-
-
-@app.route('/payments/<payment_id>', methods=['GET'])
-@handle_errors
-def get_payment(payment_id):
-    payment = Payment.get(payment_id)
-    return jsonify(payment.to_primitive())
+async def get_wallet(request, wallet_address):
+    w = await app.blockchain_manager.get_wallet(wallet_address)
+    return json_response(w.to_primitive(), 200)
 
 
 @app.route('/payments', methods=['POST'])
-@handle_errors
-def pay():
-    payment = PaymentRequest(request.get_json())
+async def pay(request):
+    payment = PaymentRequest(request.json)
 
     try:
-        Payment.get(payment.id)
+        await Payment.get(payment.id, app.enqueuer.redis_conn)
         raise AlreadyExistsError('payment already exists')
     except PaymentNotFoundError:
         pass
@@ -68,55 +54,40 @@ def pay():
         if payment.app_id not in config.APP_SEEDS:
             raise NoSuchServiceError('Did not find keypair for service: {}'.format(payment.app_id))
 
-    enqueue_send_payment(payment)
-    return jsonify(), 201
+    app.enqueuer.enqueue_send_payment(payment)
+    return json_response({}, 201)
 
 
-@app.route('/watchers/<service_id>', methods=['POST', 'DELETE'])
-@handle_errors
-def watch(service_id):
-    body = request.get_json()
-    if request.method == 'DELETE':
-        if Service.get(service_id) is not None:
-            Watcher.remove(service_id, body['wallet_address'], body['order_id'])
-            log.info('removed order {} from address {}'.format(body['order_id'], body['wallet_address']))
-        else:
-            raise NoSuchServiceError('There is no watcher for service: {}'.format(service_id))
+@app.route('/watchers/<service_id>', methods=['POST'])
+def watch(request, service_id):
+    body = request.json
+    for address in body['wallet_addresses']:
+        app.watcher.watch(address, body['order_id'])
 
-    else:  # POST
-        if Service.get(service_id) is None:
-            # Add the service if it not in the database
-            Service.new(service_id, body['callback'])
-        for address in body['wallet_addresses']:
-            Watcher.add(service_id, address, body['order_id'])
-            log.info("Added order: {} to watcher for: {}".format(body['order_id'],address))
-
-    return jsonify(), 200
+    return json_response({}, 200)
 
 
 @app.route('/whitelist', methods=['POST'])
-@handle_errors
-def whitelist():
-    whitelist_request = WhitelistRequest(request.get_json())
+async def whitelist(request):
+    whitelist_request = WhitelistRequest(request.json)
     whitelist_request.verify_transaction()
     # Transaction is verified, whitelist it and return to marketplace
-    whitelisted_tx = whitelist_request.whitelist()
-    return jsonify({'tx': whitelisted_tx}), 200
+    whitelisted_tx = whitelist_request.whitelist(app.blockchain_manager)
+    return json_response({'tx': whitelisted_tx}, 200)
 
 
 @app.route('/status', methods=['GET'])
-def status():
-    body = request.get_json()
-    log.info('status received', body=body)
-    return jsonify({'app_name': config.APP_NAME,
-                    'status': 'ok',
-                    'start_time': config.build['start_time'],
-                    'build': {'timestamp': config.build['timestamp'],
-                              'commit': config.build['commit']}})
+async def status(request):
+    log.info('status received')
+    statsd.gauge('pending_tasks', len(asyncio.all_tasks()))
+    return json_response({'app_name': config.APP_NAME,
+                          'status': 'ok',
+                          'start_time': config.build['start_time'],
+                          'build': {'timestamp': config.build['timestamp'],
+                                    'commit': config.build['commit']}}, 200)
 
 
 @app.route('/config', methods=['GET'])
-def get_config():
-    return jsonify({'horizon_url': config.STELLAR_HORIZON_URL,
-                    'network_passphrase': config.STELLAR_NETWORK,
-                    })
+def get_config(request):
+    return json_response({'horizon_url': config.STELLAR_HORIZON_URL,
+                          'network_passphrase': config.STELLAR_NETWORK}, 200)
