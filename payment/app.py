@@ -4,11 +4,12 @@ from .log import init as init_log
 import asyncio
 from sanic import Sanic
 from sanic.request import Request
+from aioredis import Redis
 
 from .statsd import statsd
 from .errors import AlreadyExistsError, PaymentNotFoundError, NoSuchServiceError
 from .middleware import init_middlewares
-from .models import Payment, WalletRequest, PaymentRequest ,WhitelistRequest
+from .models import Payment, WalletRequest, PaymentRequest, WhitelistRequest
 from .queue import Enqueuer
 from .utils import json_response
 from .blockchain import BlockchainManager
@@ -21,6 +22,7 @@ init_middlewares(app, config)
 
 # Just for the ide intellisense
 app.enqueuer: Enqueuer
+app.redis: Redis
 app.blockchain_manager: BlockchainManager
 app.watcher: PaymentWatcher
 
@@ -44,7 +46,7 @@ async def pay(request):
     payment = PaymentRequest(request.json)
 
     try:
-        await Payment.get(payment.id, app.enqueuer.redis_conn)
+        await Payment.get(payment.id, app.redis)
         raise AlreadyExistsError('payment already exists')
     except PaymentNotFoundError:
         pass
@@ -88,6 +90,6 @@ async def status(request):
 
 
 @app.route('/config', methods=['GET'])
-def get_config(request):
+async def get_config(request):
     return json_response({'horizon_url': config.STELLAR_HORIZON_URL,
                           'network_passphrase': config.STELLAR_NETWORK}, 200)

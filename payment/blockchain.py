@@ -56,32 +56,25 @@ class BlockchainManager:
     async def get_payment_data(self, tx_id) -> Payment:
         return Payment.from_blockchain(await self.get_transaction_data(tx_id))
 
-    @staticmethod
-    async def try_parse_payment(tx_data) -> Payment:
-        """try to parse payment from given tx_data. return None when failed."""
-        try:
-            return Payment.from_blockchain(tx_data)
-        except Exception as e:
-            log.exception('failed to parse payment', tx_data=tx_data, error=e)
-            raise
-
     async def get_last_ledger_seq(self):
         return (await self.client.horizon.ledgers(order='desc', limit=1))['_embedded']['records'][0]['sequence']
 
     async def get_txs_per_ledger(self, ledger_seq: int, paging_token=None) -> List[Dict]:
         txs = []
-        try:
-            result = (await self.client.horizon.ledger_transactions(ledger_seq, limit=MAX_RECORDS_PER_REQUEST,
-                                                                    cursor=paging_token))['_embedded']['records']
-            txs.extend(result)
+        while True:
+            try:
+                result = (await self.client.horizon.ledger_transactions(ledger_seq, limit=MAX_RECORDS_PER_REQUEST,
+                                                                        cursor=paging_token))['_embedded']['records']
+                txs.extend(result)
 
-            if len(result) == MAX_RECORDS_PER_REQUEST:  # There might be more txs in the ledger
+                if len(result) != MAX_RECORDS_PER_REQUEST:  # There are no more txs left in the ledger
+                    return txs
+
                 last_cursor = result[-1]['paging_token']
                 txs.extend(await self.get_txs_per_ledger(ledger_seq, last_cursor))  # Call the method again with the cursor
-        except HorizonError as e:
-            raise translate_horizon_error(e)
 
-        return txs
+            except HorizonError as e:
+                raise translate_horizon_error(e)
 
 
 

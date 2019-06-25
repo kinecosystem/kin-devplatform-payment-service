@@ -16,6 +16,8 @@ from kin.blockchain.keypair import Keypair
 
 log = get_log("Enqueuer")
 
+CALLBACK_RETIRES = 5
+CALLBACK_BACKOFF = 0.2
 
 class Enqueuer:
     def __init__(self, bc_manager: BlockchainManager, redis_conn: Redis):
@@ -84,7 +86,7 @@ class Enqueuer:
     async def call_callback(self, callback: str, app_id: str, objekt: str, state: str, action: str, value: dict):
 
         async def retry_callback(callback: str, payload: dict):
-            for i in range(5):
+            for i in range(CALLBACK_RETIRES):
                 try:
                     # The kin client sets x-www-form-urlencoded as the content type, so override it just for this request
                     async with self.session.post(callback, json=payload, raise_for_status=True,
@@ -94,7 +96,7 @@ class Enqueuer:
                     if i == 4:
                         raise
 
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(CALLBACK_BACKOFF)
 
         payload = {
             'object': objekt,

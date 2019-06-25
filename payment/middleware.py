@@ -3,6 +3,7 @@ import asyncio
 import kin
 from kin.utils import create_channels
 import aioredis
+from aioredis_lock import RedisLock
 
 from .errors import BaseError
 from .log import get as get_log
@@ -38,13 +39,15 @@ def init_middlewares(app, config):
         # Setup Kin related stuff
 
         async def add_to_blockchain_manager(ds, seeds):
-            channels = await create_channels(seeds.our, kin_env, config.MAX_CHANNELS, 0, config.CHANNEL_SALT)
-            app.blockchain_manager.add_account(seeds.our, channels, ds)
+            async with RedisLock(app.redis, '_lock_ds_channels:{}'.format(ds),  # Lock to prevent bad_seq conflicts with other instances
+                                 timeout=60, wait_timeout=30):
+                channels = await create_channels(seeds.our, kin_env, config.MAX_CHANNELS, 0, config.CHANNEL_SALT)
+                app.blockchain_manager.add_account(seeds.our, channels, ds)
 
-            channels = await create_channels(seeds.our, kin_env, config.MAX_CHANNELS, 0, config.CHANNEL_SALT)
-            app.blockchain_manager.add_account(seeds.joined, channels, ds)
+                channels = await create_channels(seeds.joined, kin_env, config.MAX_CHANNELS, 0, config.CHANNEL_SALT)
+                app.blockchain_manager.add_account(seeds.joined, channels, ds)
 
-            log.debug(f'Initialized ds {ds} with {config.MAX_CHANNELS} per seed')
+                log.debug(f'Initialized ds {ds} with {config.MAX_CHANNELS} per seed')
 
         # Setup kin client
         kin_env = kin.Environment('CUSTOM', config.STELLAR_HORIZON_URL, config.STELLAR_NETWORK)
