@@ -70,8 +70,7 @@ class BlockchainManager:
                 if len(result) != MAX_RECORDS_PER_REQUEST:  # There are no more txs left in the ledger
                     return txs
 
-                last_cursor = result[-1]['paging_token']
-                txs.extend(await self.get_txs_per_ledger(ledger_seq, last_cursor))  # Call the method again with the cursor
+                paging_token = result[-1]['paging_token']
 
             except HorizonError as e:
                 raise translate_horizon_error(e)
