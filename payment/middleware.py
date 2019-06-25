@@ -54,7 +54,7 @@ def init_middlewares(app, config):
 
         tasks = []
         for ds, seeds in config.APP_SEEDS.items():
-            tasks.append(add_to_blockchain_manager(ds, seeds))
+            tasks.append(asyncio.create_task(add_to_blockchain_manager(ds, seeds)))
 
         await asyncio.gather(*tasks)
 
