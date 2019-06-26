@@ -1,5 +1,6 @@
 import time
 import asyncio
+from datetime import datetime, timedelta
 from concurrent.futures import ProcessPoolExecutor
 
 from kin.transactions import SimplifiedTransaction, RawTransaction, OperationTypes
@@ -11,13 +12,13 @@ from .models import Payment
 from .log import get as get_log
 from .statsd import statsd
 
-from typing import Set, Dict , List
+from typing import Set, Dict, List
 
 log = get_log('Watcher')
-WAIT_WHEN_FOUND = 4.5  # How long to wait until querying about the next ledger when we got a response
-WAIT_WHEN_NOT_FOUND = 1  # How long to wait until querying about the next ledger when we got a 404
+SECS_PER_LEDGER = 5
+SECS_TO_SLEEP = 1  # How long to wait until querying about the next ledger when we got a 404
 ORDER_EXPIRY = 70  # How long before we stop watching an order
-RETRIES_BEFORE_EXCEPTION = 5  # Will continue retrying, but will only raise an error after n retries
+RETRIES_BEFORE_EXCEPTION = 5 + SECS_PER_LEDGER  # Will continue retrying, but will only raise an error after n retries
 
 
 class PaymentWatcher:
@@ -30,6 +31,7 @@ class PaymentWatcher:
         self.executor = ProcessPoolExecutor()
         self.loop = asyncio.get_running_loop()
         self._expiration_tasks: Dict[str, asyncio.TimerHandle] = {}
+        self._last_iteration_success = True
 
     def watch(self, address: str, order: str):
         """Start watching an order for an address"""
@@ -94,13 +96,10 @@ class PaymentWatcher:
                     txs = await self.bc_manager.get_txs_per_ledger(ledger_seq)
                     retry_count = 0
                 except ResourceNotFoundError:
-                    log.debug(f'Ledger {ledger_seq} not found')
                     retry_count += 1
                     if retry_count >= RETRIES_BEFORE_EXCEPTION:
                         raise
 
-                    log.debug(f'retrying in {WAIT_WHEN_NOT_FOUND} seconds')
-                    await asyncio.sleep(WAIT_WHEN_NOT_FOUND)
                     continue
 
                 if len(txs) != 0:
@@ -128,15 +127,18 @@ class PaymentWatcher:
             except asyncio.CancelledError:
                 raise  # Need this to be able to cancel the worker
             except Exception as e:
+                self._last_iteration_success = False
+
                 statsd.increment('watcher_beat.failed', tags=['error:%s' % e])
                 log.exception('failed watcher iteration', error=e)
             else:
+                self._last_iteration_success = True
                 ledger_seq += 1
+            finally:
+                statsd.timing('watcher_beat', time.time() - start_t)
+                statsd.gauge('watcher_beat.ledger', ledger_seq)
 
-            statsd.timing('watcher_beat', time.time() - start_t)
-            statsd.gauge('watcher_beat.ledger', ledger_seq)
-
-            await asyncio.sleep(WAIT_WHEN_FOUND)
+                await asyncio.sleep(SECS_TO_SLEEP)
 
 
 def get_kin_payments(txs: List[Dict]) -> List[SimplifiedTransaction]:

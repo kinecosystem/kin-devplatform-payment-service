@@ -82,11 +82,15 @@ async def whitelist(request):
 async def status(request):
     log.info('status received')
     statsd.gauge('pending_tasks', len(asyncio.all_tasks()))
+
+    status = ((await app.blockchain_manager.client.get_config())['horizon']['error'] is None
+              and app.watcher._last_iteration_success)
+
     return json_response({'app_name': config.APP_NAME,
-                          'status': 'ok',
+                          'status': 'ok' if status else 'not ok',
                           'start_time': config.build['start_time'],
                           'build': {'timestamp': config.build['timestamp'],
-                                    'commit': config.build['commit']}}, 200)
+                                    'commit': config.build['commit']}}, 200 if status else 500)
 
 
 @app.route('/config', methods=['GET'])
