@@ -153,8 +153,12 @@ class Enqueuer:
 
         else:
             statsd.increment('wallet.created', tags=['app_id:%s' % wallet_request.app_id])
-            wallet = await self.bc_manager.get_wallet(wallet_request.wallet_address)  # TODO: maybe delete this? just an extra web request
-            wallet.id = wallet_request.id  # XXX id is required in webhook
+            wallet = Wallet({
+                'wallet_address': wallet_request.wallet_address,
+                'kin_balance': 0,
+                'native_balance': 0,
+                'id': wallet_request.id
+            })
             self.enqueue_wallet_callback(wallet_request, wallet)
 
     async def pay(self, payment_request: PaymentRequest):
