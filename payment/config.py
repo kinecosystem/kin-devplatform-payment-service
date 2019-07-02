@@ -5,17 +5,16 @@ from kin import Environment
 
 import app_seeds
 
-
+APP_PORT = os.environ['APP_PORT']
+APP_REDIS = os.environ['APP_REDIS']
+WEBHOOK = os.environ['WEBHOOK']
 STELLAR_HORIZON_URL = os.environ['STELLAR_HORIZON_URL']
 STELLAR_NETWORK = os.environ['STELLAR_NETWORK']
 STELLAR_ENV = Environment('CUSTOM', STELLAR_HORIZON_URL, STELLAR_NETWORK)
 
 CHANNEL_SALT = os.environ.get('CHANNEL_SALT')
 MAX_CHANNELS = int(os.environ.get('MAX_CHANNELS', '20'))
-STELLAR_BASE_SEED = os.environ['STELLAR_BASE_SEED']
-STELLAR_INITIAL_XLM_AMOUNT = float(os.environ['STELLAR_INITIAL_XLM_AMOUNT'])
 
-REDIS = os.environ['APP_REDIS']
 APP_NAME = os.environ.get('APP_NAME', 'payment-service')
 
 STATSD_HOST = os.environ.get('STATSD_HOST', 'localhost')

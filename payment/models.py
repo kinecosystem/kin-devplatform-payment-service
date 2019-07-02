@@ -1,14 +1,16 @@
 import json
 from collections import namedtuple
 from datetime import datetime
+
+from aioredis import Redis
 from schematics import Model
 from schematics.types import StringType, IntType, DateTimeType, BooleanType
 from kin.transactions import NATIVE_ASSET_TYPE, SimplifiedTransaction
 from kin import decode_transaction
 from kin import KinErrors
 from kin import Keypair
+
 from .errors import PaymentNotFoundError, ParseError, OrderNotFoundError, TransactionMismatch
-from .redis_conn import redis_conn
 from .log import get as get_log
 from .config import APP_SEEDS
 
@@ -31,7 +33,6 @@ class WalletRequest(ModelWithStr):
     app_id = StringType()
     id = StringType()
     callback = StringType()  # a webhook to call when a wallet creation is complete
-    # XXX validate should raise 400 error
 
 
 class Wallet(ModelWithStr):
@@ -98,14 +99,11 @@ class WhitelistRequest(ModelWithStr):
         self._compare_attr(decoded_tx.operation.destination, self.destination, 'Destination account')
         self._compare_attr(decoded_tx.operation.amount, self.amount, 'Amount')
 
-    def whitelist(self) -> str:
+    def whitelist(self, bc_manager) -> str:
         """Sign and return a transaction to whitelist it"""
-        # Fix for circular imports
-        # https://stackoverflow.com/questions/1250103/attributeerror-module-object-has-no-attribute
-        from .blockchain import _write_sdks
         app_seed = APP_SEEDS.get(self.app_id).our
         # Get app hot wallet account
-        hot_account = _write_sdks[Keypair.address_from_seed(app_seed)]
+        hot_account = bc_manager.accounts[app_seed].account
         return hot_account.whitelist_transaction({'envelope': self.xdr,
                                                   'network_id': self.network_id})
 
@@ -146,78 +144,20 @@ class Payment(ModelWithStr):
         return '1-{}-{}'.format(app_id, payment_id)
 
     @classmethod
-    def get(cls, payment_id):
-        data = redis_conn.get(cls._key(payment_id))
+    async def get(cls, payment_id, redis_conn: Redis):
+        data = await redis_conn.get(cls._key(payment_id))
         if not data:
             raise PaymentNotFoundError('payment {} not found'.format(payment_id))
-        return Payment(json.loads(data))
+        return Payment(json.loads(data.decode()))
 
     @classmethod
     def _key(cls, id):
         return 'payment:{}'.format(id)
 
-    def save(self):
-        redis_conn.set(self._key(self.id),
+    async def save(self, redis_conn: Redis):
+        await redis_conn.set(self._key(self.id),
                        json.dumps(self.to_primitive()),
-                       ex=self.PAY_STORE_TIME)
-
-
-class Watcher():
-    @classmethod
-    def add(cls, service_id, address, order_id):
-        # Add an order to the address, redis will not add the same order_id twice.
-        redis_conn.sadd(cls.get_name(service_id, address), order_id)
-
-    @classmethod
-    def get_name(cls, service_id, address):
-        return service_id + ':' + address
-
-    @classmethod
-    def remove(cls, service_id, address, order_id):
-        # Remove an order from the address, if the address has no more orders it will be deleted
-        reply = redis_conn.srem(service_id + ':' + address, order_id)
-        # reply is the number of items changed, expected to be 1
-        if reply != 1:
-            raise OrderNotFoundError('Wallet {} did not watch order {}'.format(address, order_id))
-
-    @classmethod
-    def get_all_addresses(cls):
-        # Get all keys that are addresses
-        data = redis_conn.keys("*:G*")
-        # Create a list of addresses by decoding the  byte strings and taking everything after ":"
-        addresses = [key.decode().split(':')[1] for key in data]
-        return addresses
-
-    @classmethod
-    def get_subscribed(cls, address):
-        """get services interested in an address."""
-        # Get all keys that are addresses
-        data = redis_conn.keys("*:{}".format(address))
-        # Create a list of addresses by decoding the  byte strings and taking everything before ":"
-        services = [key.decode().split(':')[0] for key in data]
-        return services
-
-
-class Service:
-    # TODO: add endpoint to create new service
-    SERVICE_PREFIX = 'service:'
-
-    @classmethod
-    def get(cls, service_id):
-        data = redis_conn.get(cls.SERVICE_PREFIX + service_id)
-        if data is None:
-            return data
-        # Redis returns data in bytestrings, need to decode it.
-        return data.decode()
-
-    @classmethod
-    def new(cls, service_id, callback_url):
-        reply = redis_conn.set(cls.SERVICE_PREFIX + service_id, callback_url)
-        # reply is True|False
-        return reply
-
-
-
+                       expire=self.PAY_STORE_TIME)
 
 class TransactionRecord(ModelWithStr):
     to_address = StringType(serialized_name='to', required=True)
@@ -226,20 +166,3 @@ class TransactionRecord(ModelWithStr):
     asset_type = StringType()
     paging_token = StringType(required=True)
     type = StringType(required=True)
-
-
-class CursorManager:
-    @classmethod
-    def save(cls, cursor):
-        redis_conn.set(cls._key(), cursor)
-        return cursor
-
-    @classmethod
-    def get(cls):
-        cursor = redis_conn.get(cls._key())
-        return cursor.decode('utf8') if cursor else None
-
-    @classmethod
-    def _key(cls):
-        return 'cursor'
-

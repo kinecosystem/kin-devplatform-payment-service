@@ -3,18 +3,18 @@ url = "https://pypi.python.org/simple"
 verify_ssl = true
 name = "pypi"
 
+[requires]
+python_version = "3.7"
+
 [dev-packages]
 ipython = "*"
 
 [packages]
-flask = "*"
 schematics = "*"
 structlog = "*"
-requests = "*"
-rq = "==0.12.0"
-hiredis = "==0.2.0"
-gunicorn = "*"
 datadog = "*"
 "boto3" = "*"
-kin-sdk = "==2.2.5"
-redis = "==2.10.6"
+kin-sdk = "==2.4.2"
+aioredis = "==1.2.0"
+sanic = "==19.3.1"
+aioredis-lock = "==0.0.1"
